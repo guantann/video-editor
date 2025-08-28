@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Editor</title>
+
+  <!-- PWA 基础配置 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Video Editor" />
+  <link rel="apple-touch-icon" href="icon.png" /> <!-- 你可以放一个 180x180 的图标 -->
+
+  <!-- manifest.json 引用 -->
+  <link rel="manifest" href="manifest.json" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      border-radius: 10px;
+      border: none;
+      background: #007bff;
+      color: white;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎬 Video Editor</h1>
+  <input type="file" id="upload" multiple accept="video/*" />
+  <button onclick="processVideos()">导出视频</button>
+  <p id="status">请上传视频开始编辑</p>
+
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js"></script>
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    async function processVideos() {
+      document.getElementById("status").innerText = "⏳ 正在加载 ffmpeg...";
+      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+      const files = document.getElementById("upload").files;
+      if (files.length === 0) {
+        alert("请先选择视频！");
+        return;
+      }
+
+      // 逐个写入
+      for (let i = 0; i < files.length; i++) {
+        ffmpeg.FS("writeFile", `input${i}.mp4`, await fetchFile(files[i]));
+      }
+
+      // 拼接 list.txt
+      let listContent = "";
+      for (let i = 0; i < files.length; i++) {
+        listContent += `file 'input${i}.mp4'\n`;
+      }
+      ffmpeg.FS("writeFile", "list.txt", listContent);
+
+      document.getElementById("status").innerText = "⏳ 正在处理视频...";
+      await ffmpeg.run("-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", "output.mp4");
+
+      const data = ffmpeg.FS("readFile", "output.mp4");
+      const url = URL.createObjectURL(new Blob([data.buffer], { type: "video/mp4" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "output.mp4";
+      a.innerText = "⬇️ 下载视频";
+      document.body.appendChild(a);
+
+      document.getElementById("status").innerText = "✅ 完成！点击下面的链接保存视频。";
+    }
+  </script>
+</body>
+</html>
